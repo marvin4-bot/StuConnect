@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 Created on Wed May 27 16:28:11 2026
-
 @author: dieru
-
-123
+1234
 """
 
 import tkinter as tk
