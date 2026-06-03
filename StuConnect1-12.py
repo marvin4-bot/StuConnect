@@ -3,6 +3,8 @@
 Created on Wed May 27 18:03:21 2026
 
 @author: dieru
+
+123
 """
 
 import tkinter as tk
