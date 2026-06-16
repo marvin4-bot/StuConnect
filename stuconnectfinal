@@ -1,0 +1,1246 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Jun  4 16:33:09 2026
+
+@author: Nutzer
+"""
+
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Jun  4 16:19:54 2026
+
+@author: Nutzer
+"""
+
+import tkinter as tk
+from tkinter import ttk
+
+# ── Fenster erstellen ──────────────────────────────────────────
+window = tk.Tk()
+window.title("StuConnect")
+window.geometry("390x780")
+window.resizable(False, False)
+window.configure(bg="#FFFFFF")
+
+# ── Farben ─────────────────────────────────────────────────────
+LILA       = "#5B4FCF"
+LILA_HELL  = "#EDE9FF"
+WEISS      = "#FFFFFF"
+GRAU_BG    = "#F0F0F0"
+GRAU_BG2   = "#F8F8F8"
+GRAU_TEXT  = "#666666"
+SCHWARZ    = "#1A1A1A"
+GRUEN      = "#27AE60"
+ROT        = "#E74C3C"
+GELB       = "#F1C40F"
+HELLBLAU   = "#3498DB"
+BAYERNBLAU = "#E8F4FD"
+
+# ══════════════════════════════════════════════════════════════
+# GLOBALE DATEN
+# ══════════════════════════════════════════════════════════════
+nutzer_daten = {
+    "name": "", "email": "", "uni": "", "geschlecht": "",
+    "abschluss": "", "studiengang": "", "fakultaet": "", "semester": ""
+}
+
+eigene_angebote  = []
+chat_nachrichten = {}
+aktive_chats     = []
+
+# Bewertungen die man ERHALTEN hat (sichtbar im Profil)
+bewertungen_erhalten = [
+    {"von": "Lisa M.", "sterne": 5,
+     "kommentar": "Super erklärt! Hat mir wirklich sehr geholfen. Sehr empfehlenswert!"},
+    {"von": "Tom K.",  "sterne": 4,
+     "kommentar": "Sehr nette und geduldige Nachhilfe. Gerne wieder!"}
+]
+# Bewertungen die man ABGEGEBEN hat (nicht im eigenen Profil sichtbar)
+bewertungen_abgegeben = {}  # { name: {"sterne": n, "kommentar": "..."} }
+
+# Spendenstand
+spenden_aktuell = tk.DoubleVar()
+spenden_aktuell.set(2455.0)
+SPENDEN_ZIEL = 10000.0
+
+BWL_FAECHER = [
+    "Grundlagen der Mikroökonomik",
+    "English for Business and Entrepreneurship",
+    "Kosten- und Leistungsrechnung",
+    "Wirtschaftsprivatrecht",
+    "Digital Business",
+    "Methoden und Modelle der Optimierung"
+]
+
+FAKULTAETEN = ["Fakultät wählen"] + [f"Fakultät {str(i).zfill(2)}" for i in range(1, 15)]
+
+# Geschlecht aus Name erraten (grobe Heuristik)
+MAENNLICH = {"lukas","jonas","tim","max","felix","loris","tom"}
+WEIBLICH  = {"anna","sarah","marie","nina","lena","julia","lisa","emelie","clara","leonie"}
+
+def geschlecht_aus_name(name):
+    vorname = name.split()[0].lower()
+    if vorname in MAENNLICH:  return "männlich"
+    if vorname in WEIBLICH:   return "weiblich"
+    return "divers"
+
+beispiel_angebote = [
+    {"name": "Anna M.",       "fach": "Kosten- und Leistungsrechnung",             "studiengang": "BWL", "preis": "15", "unterricht": "Online",  "sterne": 5},
+    {"name": "Lukas S.",      "fach": "Grundlagen der Mikroökonomik",              "studiengang": "BWL", "preis": "18", "unterricht": "Vor Ort", "sterne": 4},
+    {"name": "Sarah K.",      "fach": "Digital Business",                          "studiengang": "BWL", "preis": "16", "unterricht": "Beides",  "sterne": 5},
+    {"name": "Marie T.",      "fach": "Wirtschaftsprivatrecht",                    "studiengang": "BWL", "preis": "14", "unterricht": "Online",  "sterne": 4},
+    {"name": "Jonas W.",      "fach": "Methoden und Modelle der Optimierung",      "studiengang": "BWL", "preis": "20", "unterricht": "Beides",  "sterne": 5},
+    {"name": "Nina B.",       "fach": "English for Business and Entrepreneurship", "studiengang": "BWL", "preis": "13", "unterricht": "Online",  "sterne": 4},
+    {"name": "Loris Hartung", "fach": "Kosten- und Leistungsrechnung",             "studiengang": "BWL", "preis": "17", "unterricht": "Online",  "sterne": 4},
+    {"name": "Jonas Muck",    "fach": "Grundlagen der Mikroökonomik",              "studiengang": "BWL", "preis": "15", "unterricht": "Vor Ort", "sterne": 5},
+    {"name": "Emelie Gerharz","fach": "Digital Business",                          "studiengang": "BWL", "preis": "14", "unterricht": "Online",  "sterne": 5},
+    {"name": "Clara Kilian",  "fach": "Wirtschaftsprivatrecht",                    "studiengang": "BWL", "preis": "16", "unterricht": "Beides",  "sterne": 4},
+    {"name": "Leonie Riegler","fach": "Methoden und Modelle der Optimierung",      "studiengang": "BWL", "preis": "18", "unterricht": "Online",  "sterne": 5},
+]
+
+# ══════════════════════════════════════════════════════════════
+# HILFSFUNKTIONEN
+# ══════════════════════════════════════════════════════════════
+def sterne_text(n):
+    return "★" * n + "☆" * (5 - n)
+
+def erkenne_uni(email):
+    e = email.lower().strip()
+    if e.endswith("@hm.edu"):          return "Hochschule München (HM)"
+    elif e.endswith("@campus.lmu.de"): return "Ludwig-Maximilians-Universität (LMU)"
+    elif e.endswith("@mytum.de"):      return "Technische Universität München (TUM)"
+    else:                              return ""
+
+def name_aus_email(email):
+    try:
+        local = email.split("@")[0]
+        return " ".join(t.capitalize() for t in local.split("."))
+    except:
+        return ""
+
+# ══════════════════════════════════════════════════════════════
+# NAVIGATION
+# ══════════════════════════════════════════════════════════════
+def zeige(aktuell, naechster):
+    aktuell.pack_forget()
+    naechster.pack(fill="both", expand=True)
+
+alle_menu_frames = []
+
+def zeige_menu(naechster):
+    for f in alle_menu_frames:
+        f.pack_forget()
+    naechster.pack(fill="both", expand=True)
+
+def zu_home():
+    aktualisiere_home()
+    zeige_menu(frame7)
+
+def zu_suche():
+    aktualisiere_suche()
+    zeige_menu(frame8)
+
+def zu_chat():
+    aktualisiere_chat_liste()
+    zeige_menu(frame11)
+
+def zu_profil():
+    aktualisiere_profil()
+    zeige_menu(frame12)
+
+aktueller_chat_partner = tk.StringVar(value="")
+
+def zeige_chat_mit(name):
+    aktueller_chat_partner.set(name)
+    chat_name_label.config(text="👤  " + name)
+    if name not in chat_nachrichten:
+        chat_nachrichten[name] = []
+    if name not in aktive_chats:
+        aktive_chats.append(name)
+    lade_nachrichten(name)
+    zeige_menu(frame11b)
+
+def von11b_zu11():
+    aktualisiere_chat_liste()
+    zeige_menu(frame11)
+
+def zu_einstellungen():   zeige_menu(frame12b)
+def von12b_zu12():        zeige_menu(frame12)
+def zu_meine_angebote():
+    aktualisiere_meine_angebote()
+    zeige_menu(frame12c)
+def von12c_zu12():        zeige_menu(frame12)
+def zu_bewertungen():
+    aktualisiere_bewertungen()
+    zeige_menu(frame12e)
+def von12e_zu12():        zeige_menu(frame12)
+def zu_nachhilfe_anbieten(): zeige_menu(frame7a)
+def von7a_zu7():          zeige_menu(frame7)
+def zu_nachhilfe_suchen():   zeige_menu(frame7b)
+def von7b_zu7():          zeige_menu(frame7)
+
+def von1_zu2(): zeige(frame1, frame2)
+def von2_zu1(): zeige(frame2, frame1)
+
+def von2_zu3():
+    email = email_entry.get().strip()
+    if email == "" or email == "name@uni-muenchen.de":
+        fehler_email.config(text="⚠ Bitte gib deine Uni-E-Mail ein.")
+        return
+    uni = erkenne_uni(email)
+    if uni == "":
+        fehler_email.config(text="⚠ Gültige Endung: @hm.edu / @campus.lmu.de / @mytum.de")
+        return
+    nutzer_daten["email"] = email
+    nutzer_daten["uni"]   = uni
+    nutzer_daten["name"]  = name_aus_email(email)
+    fehler_email.config(text="")
+    zeige(frame2, frame3)
+
+def von3_zu2(): zeige(frame3, frame2)
+
+def von3_zu4():
+    # Frame3 = Fakultät zuerst
+    if fakultaet_var3.get() == "Fakultät wählen":
+        fehler3.config(text="⚠ Bitte wähle eine Fakultät.")
+        return
+    nutzer_daten["fakultaet"] = fakultaet_var3.get()
+    fehler3.config(text="")
+    zeige(frame3, frame4)
+
+def von4_zu3(): zeige(frame4, frame3)
+
+def von4_zu5():
+    # Frame4 = Studiengang + Abschluss
+    if studiengang_var4.get() == "Studiengang wählen":
+        fehler4.config(text="⚠ Bitte wähle einen Studiengang.")
+        return
+    nutzer_daten["abschluss"]   = abschluss_var.get()
+    nutzer_daten["studiengang"] = studiengang_var4.get()
+    fehler4.config(text="")
+    zeige(frame4, frame5)
+
+def von5_zu4(): zeige(frame5, frame4)
+
+def von5_zu6():
+    # Frame5 = Geschlecht
+    nutzer_daten["geschlecht"] = geschlecht_var_onboard.get()
+    zeige(frame5, frame6)
+
+def von6_zu5(): zeige(frame6, frame5)
+
+def von6_zu7():
+    if semester_var.get() == "Semester wählen":
+        fehler6.config(text="⚠ Bitte wähle dein Semester.")
+        return
+    nutzer_daten["semester"] = semester_var.get()
+    fehler6.config(text="")
+    uni_label_wert.config(text=nutzer_daten["uni"])
+    studiengang_einstell_var.set(nutzer_daten["studiengang"])
+    semester_einstell_var.set(nutzer_daten["semester"])
+    if nutzer_daten.get("geschlecht"):
+        geschlecht_einstell_var.set(nutzer_daten["geschlecht"])
+    aktualisiere_home()
+    aktualisiere_suche()
+    zeige(frame6, frame_hurra)
+
+def von_hurra_zu7():
+    frame_hurra.pack_forget()
+    zeige_menu(frame7)
+
+# ══════════════════════════════════════════════════════════════
+# HILFSFUNKTION: Dots-Kopf
+# ══════════════════════════════════════════════════════════════
+def erstelle_kopf(eltern, aktiver_dot, zurueck_fn, max_dots=4):
+    kopf = tk.Frame(eltern, bg=WEISS)
+    kopf.pack(fill="x", padx=20, pady=(50, 0))
+    tk.Button(kopf, text="←", command=zurueck_fn, bg=WEISS, fg=SCHWARZ,
+              font=("Helvetica", 18), relief="flat", bd=0, cursor="hand2").pack(side="left")
+    dots = tk.Frame(kopf, bg=WEISS)
+    dots.pack(side="left", padx=(60, 0))
+    for i in range(max_dots):
+        farbe = LILA if i == aktiver_dot else GRAU_BG
+        tk.Label(dots, bg=farbe, width=3 if i == aktiver_dot else 1, height=1).pack(side="left", padx=3, ipady=3)
+
+# ══════════════════════════════════════════════════════════════
+# HILFSFUNKTION: Menüleiste
+# ══════════════════════════════════════════════════════════════
+def erstelle_nav(eltern, aktiv):
+    tk.Frame(eltern, bg=GRAU_BG, height=1).pack(side="bottom", fill="x")
+    nav = tk.Frame(eltern, bg=WEISS)
+    nav.pack(side="bottom", fill="x", pady=6)
+    for sym, name, fn in [("🏠","Home",zu_home),("🔍","Suche",zu_suche),("💬","Chat",zu_chat),("👤","Profil",zu_profil)]:
+        farbe = LILA if name == aktiv else GRAU_TEXT
+        bf = tk.Frame(nav, bg=WEISS)
+        bf.pack(side="left", expand=True)
+        tk.Button(bf, text=sym+chr(10)+name, command=fn,
+                  bg=WEISS, fg=farbe, font=("Helvetica", 9),
+                  relief="flat", bd=0, cursor="hand2").pack(expand=True)
+
+# ══════════════════════════════════════════════════════════════
+# FRAME 1 – Willkommen
+# ══════════════════════════════════════════════════════════════
+frame1 = tk.Frame(window, bg=WEISS)
+frame1.pack(fill="both", expand=True)
+
+lf = tk.Frame(frame1, bg=WEISS, height=160)
+lf.pack(fill="x")
+lf.pack_propagate(False)
+tk.Frame(lf, bg=WEISS, height=40).pack()
+ttk.Label(lf, text="🎓", font=("Helvetica", 52), background=WEISS, foreground=LILA).pack()
+ttk.Label(lf, text="StuConnect", font=("Helvetica", 24, "bold"), background=WEISS, foreground=LILA).pack()
+
+i1 = tk.Frame(frame1, bg=WEISS)
+i1.pack(fill="x", padx=30, pady=(20, 0))
+ttk.Label(i1, text="Nachhilfe von Studierenden\nfür Studierende.",
+          font=("Helvetica", 16, "bold"), background=WEISS, foreground=SCHWARZ, justify="center").pack(pady=(0,6))
+ttk.Label(i1, text="Für LMU, TUM und HM.",
+          font=("Helvetica", 11), background=WEISS, foreground=GRAU_TEXT, justify="center").pack()
+
+d1 = tk.Frame(frame1, bg=WEISS)
+d1.pack(pady=16)
+for i in range(4):
+    tk.Label(d1, bg=LILA if i==0 else GRAU_BG, width=3 if i==0 else 1, height=1).pack(side="left", padx=3, ipady=3)
+
+tk.Button(frame1, text="Mit Uni-E-Mail anmelden", command=von1_zu2,
+          bg=LILA, fg=WEISS, font=("Helvetica", 13, "bold"),
+          relief="flat", cursor="hand2", pady=14, bd=0).pack(fill="x", padx=30, pady=(8, 0))
+ttk.Label(frame1, text="✓  Nur für Studierende – sicher und verifiziert",
+          font=("Helvetica", 10), background=WEISS, foreground=GRAU_TEXT).pack(pady=(12, 0))
+
+# ══════════════════════════════════════════════════════════════
+# FRAME 2 – Uni-E-Mail
+# ══════════════════════════════════════════════════════════════
+frame2 = tk.Frame(window, bg=WEISS)
+tk.Button(frame2, text="←", command=von2_zu1, bg=WEISS, fg=SCHWARZ,
+          font=("Helvetica", 18), relief="flat", bd=0, cursor="hand2").pack(anchor="w", padx=20, pady=(50,0))
+tk.Label(frame2, text="✉", font=("Helvetica", 52), bg=WEISS, fg=LILA).pack(pady=(30,0))
+ttk.Label(frame2, text="Deine Uni-E-Mail", font=("Helvetica", 20, "bold"),
+          background=WEISS, foreground=SCHWARZ).pack(pady=(20,6))
+ttk.Label(frame2, text="Wir prüfen deine Berechtigung.",
+          font=("Helvetica", 11), background=WEISS, foreground=GRAU_TEXT).pack()
+
+email_entry = tk.Entry(frame2, font=("Helvetica", 12), relief="solid", bd=1, fg=GRAU_TEXT)
+email_entry.insert(0, "name@uni-muenchen.de")
+email_entry.pack(fill="x", padx=30, ipady=10, pady=(30,0))
+fehler_email = ttk.Label(frame2, text="", font=("Helvetica", 10), background=WEISS, foreground=ROT)
+fehler_email.pack(padx=30, anchor="w")
+
+def email_click(e):
+    if email_entry.get() == "name@uni-muenchen.de":
+        email_entry.delete(0,"end"); email_entry.config(fg=SCHWARZ)
+def email_leave(e):
+    if email_entry.get() == "":
+        email_entry.insert(0,"name@uni-muenchen.de"); email_entry.config(fg=GRAU_TEXT)
+email_entry.bind("<FocusIn>", email_click)
+email_entry.bind("<FocusOut>", email_leave)
+
+tk.Button(frame2, text="Weiter", command=von2_zu3, bg=LILA, fg=WEISS,
+          font=("Helvetica", 13, "bold"), relief="flat", cursor="hand2", pady=14, bd=0).pack(fill="x", padx=30, pady=(10,0))
+ttk.Label(frame2, text="🔒  Wir verwenden deine E-Mail nur zur Verifizierung.",
+          font=("Helvetica", 10), background=WEISS, foreground=GRAU_TEXT).pack(pady=(16,0))
+
+# ══════════════════════════════════════════════════════════════
+# FRAME 3 – Fakultät
+# ══════════════════════════════════════════════════════════════
+frame3 = tk.Frame(window, bg=WEISS)
+erstelle_kopf(frame3, 0, von3_zu2, 4)
+ttk.Label(frame3, text="Deine Fakultät", font=("Helvetica", 22, "bold"),
+          background=WEISS, foreground=SCHWARZ).pack(pady=(30,20))
+
+f3 = tk.Frame(frame3, bg=WEISS)
+f3.pack(fill="x", padx=30)
+ttk.Label(f3, text="Fakultät", font=("Helvetica", 11), background=WEISS, foreground=GRAU_TEXT).pack(anchor="w", pady=(0,4))
+fakultaet_var3 = tk.StringVar(value="Fakultät wählen")
+ttk.Combobox(f3, textvariable=fakultaet_var3, values=FAKULTAETEN,
+             state="readonly", font=("Helvetica", 12)).pack(fill="x", ipady=6)
+
+fehler3 = ttk.Label(frame3, text="", font=("Helvetica", 10), background=WEISS, foreground=ROT)
+fehler3.pack(padx=30, anchor="w")
+tk.Button(frame3, text="Weiter", command=von3_zu4, bg=LILA, fg=WEISS,
+          font=("Helvetica", 13, "bold"), relief="flat", cursor="hand2", pady=14, bd=0).pack(fill="x", padx=30, pady=(20,0))
+
+# ══════════════════════════════════════════════════════════════
+# FRAME 4 – Studiengang + Abschluss
+# ══════════════════════════════════════════════════════════════
+frame4 = tk.Frame(window, bg=WEISS)
+erstelle_kopf(frame4, 1, von4_zu3, 4)
+ttk.Label(frame4, text="Dein Studiengang", font=("Helvetica", 22, "bold"),
+          background=WEISS, foreground=SCHWARZ).pack(pady=(30,20))
+
+f4 = tk.Frame(frame4, bg=WEISS)
+f4.pack(fill="x", padx=30)
+
+ttk.Label(f4, text="Abschluss", font=("Helvetica", 11), background=WEISS, foreground=GRAU_TEXT).pack(anchor="w", pady=(0,4))
+aw4 = tk.Frame(f4, bg=WEISS)
+aw4.pack(fill="x", pady=(0,12))
+abschluss_var = tk.StringVar(value="Bachelor")
+
+def setze_bach():
+    abschluss_var.set("Bachelor")
+    bach_btn.config(bg=LILA, fg=WEISS)
+    mast_btn.config(bg=GRAU_BG, fg=SCHWARZ)
+def setze_mast():
+    abschluss_var.set("Master")
+    mast_btn.config(bg=LILA, fg=WEISS)
+    bach_btn.config(bg=GRAU_BG, fg=SCHWARZ)
+
+bach_btn = tk.Button(aw4, text="Bachelor", command=setze_bach,
+                     bg=LILA, fg=WEISS, font=("Helvetica", 12, "bold"),
+                     relief="flat", bd=0, cursor="hand2", pady=8, width=12)
+bach_btn.pack(side="left", padx=(0,8))
+mast_btn = tk.Button(aw4, text="Master", command=setze_mast,
+                     bg=GRAU_BG, fg=SCHWARZ, font=("Helvetica", 12, "bold"),
+                     relief="flat", bd=0, cursor="hand2", pady=8, width=12)
+mast_btn.pack(side="left")
+
+ttk.Label(f4, text="Studiengang", font=("Helvetica", 11), background=WEISS, foreground=GRAU_TEXT).pack(anchor="w", pady=(0,4))
+studiengang_var4 = tk.StringVar(value="Studiengang wählen")
+ttk.Combobox(f4, textvariable=studiengang_var4,
+             values=["Studiengang wählen","BWL","Informatik","Wirtschaftsinformatik",
+                     "Medizin","Jura","Psychologie","Maschinenbau","Architektur"],
+             state="readonly", font=("Helvetica", 12)).pack(fill="x", ipady=6)
+
+fehler4 = ttk.Label(frame4, text="", font=("Helvetica", 10), background=WEISS, foreground=ROT)
+fehler4.pack(padx=30, anchor="w")
+tk.Button(frame4, text="Weiter", command=von4_zu5, bg=LILA, fg=WEISS,
+          font=("Helvetica", 13, "bold"), relief="flat", cursor="hand2", pady=14, bd=0).pack(fill="x", padx=30, pady=(20,0))
+
+# ══════════════════════════════════════════════════════════════
+# FRAME 5 – Geschlecht
+# ══════════════════════════════════════════════════════════════
+frame5 = tk.Frame(window, bg=WEISS)
+erstelle_kopf(frame5, 2, von5_zu4, 4)
+ttk.Label(frame5, text="Dein Geschlecht", font=("Helvetica", 22, "bold"),
+          background=WEISS, foreground=SCHWARZ).pack(pady=(40,20))
+
+geschlecht_var_onboard = tk.StringVar(value="keine_auswahl")
+gf5 = tk.Frame(frame5, bg=WEISS)
+gf5.pack(padx=30, pady=(10,0), anchor="w")
+
+for g, sym in [("männlich","👨"),("weiblich","👩"),("divers","🧑")]:
+    zeile = tk.Frame(gf5, bg=WEISS)
+    zeile.pack(fill="x", pady=6)
+    tk.Radiobutton(zeile, text=sym + "  " + g.capitalize(),
+                   variable=geschlecht_var_onboard, value=g,
+                   bg=WEISS, fg=SCHWARZ, font=("Helvetica", 13),
+                   activebackground=WEISS, cursor="hand2").pack(side="left")
+
+fehler5 = ttk.Label(frame5, text="", font=("Helvetica", 10), background=WEISS, foreground=ROT)
+fehler5.pack(padx=30, anchor="w", pady=(8,0))
+tk.Button(frame5, text="Weiter", command=von5_zu6, bg=LILA, fg=WEISS,
+          font=("Helvetica", 13, "bold"), relief="flat", cursor="hand2", pady=14, bd=0).pack(fill="x", padx=30, pady=(20,0))
+
+# ══════════════════════════════════════════════════════════════
+# FRAME 6 – Semester
+# ══════════════════════════════════════════════════════════════
+frame6 = tk.Frame(window, bg=WEISS)
+erstelle_kopf(frame6, 3, von6_zu5, 4)
+ttk.Label(frame6, text="Welches Semester?", font=("Helvetica", 22, "bold"),
+          background=WEISS, foreground=SCHWARZ).pack(pady=(40,20))
+
+sf6 = tk.Frame(frame6, bg=WEISS)
+sf6.pack(fill="x", padx=30)
+semester_var = tk.StringVar(value="Semester wählen")
+ttk.Combobox(sf6, textvariable=semester_var,
+             values=["Semester wählen","1. Semester","2. Semester","3. Semester",
+                     "4. Semester","5. Semester","6. Semester","7. Semester","8. Semester"],
+             state="readonly", font=("Helvetica", 12)).pack(fill="x", ipady=6)
+
+fehler6 = ttk.Label(frame6, text="", font=("Helvetica", 10), background=WEISS, foreground=ROT)
+fehler6.pack(padx=30, anchor="w")
+tk.Button(frame6, text="Weiter", command=von6_zu7, bg=LILA, fg=WEISS,
+          font=("Helvetica", 13, "bold"), relief="flat", cursor="hand2", pady=14, bd=0).pack(fill="x", padx=30, pady=(20,0))
+
+# ══════════════════════════════════════════════════════════════
+# HURRA-Frame
+# ══════════════════════════════════════════════════════════════
+frame_hurra = tk.Frame(window, bg=WEISS)
+tk.Frame(frame_hurra, bg=WEISS, height=120).pack()
+ttk.Label(frame_hurra, text="🎉", font=("Helvetica", 70), background=WEISS).pack()
+ttk.Label(frame_hurra, text="Hurra!", font=("Helvetica", 28, "bold"), background=WEISS, foreground=LILA).pack(pady=(20,10))
+ttk.Label(frame_hurra, text="Du bist jetzt startklar!", font=("Helvetica", 16), background=WEISS, foreground=SCHWARZ).pack()
+ttk.Label(frame_hurra, text="Finde jetzt Studierende\ndie dir helfen können.",
+          font=("Helvetica", 12), background=WEISS, foreground=GRAU_TEXT, justify="center").pack(pady=(10,0))
+tk.Frame(frame_hurra, bg=WEISS, height=80).pack()
+tk.Button(frame_hurra, text="Zur Startseite", command=von_hurra_zu7, bg=LILA, fg=WEISS,
+          font=("Helvetica", 13, "bold"), relief="flat", cursor="hand2", pady=14, bd=0).pack(fill="x", padx=30)
+
+# ══════════════════════════════════════════════════════════════
+# FRAME 7 – Home  (mit Canvas/Scroll)
+# ══════════════════════════════════════════════════════════════
+frame7 = tk.Frame(window, bg=WEISS)
+alle_menu_frames.append(frame7)
+# Nav ZUERST packen (side=bottom), damit sie beim Scrollen fest bleibt
+erstelle_nav(frame7, "Home")
+
+# Scrollbarer Bereich mit Scrollbar rechts
+home_scroll_frame = tk.Frame(frame7, bg=WEISS)
+home_scroll_frame.pack(fill="both", expand=True)
+
+home_scrollbar = ttk.Scrollbar(home_scroll_frame, orient="vertical")
+home_scrollbar.pack(side="right", fill="y")
+
+home_canvas = tk.Canvas(home_scroll_frame, bg=WEISS, highlightthickness=0,
+                         yscrollcommand=home_scrollbar.set)
+home_canvas.pack(side="left", fill="both", expand=True)
+home_scrollbar.config(command=home_canvas.yview)
+
+home_inner = tk.Frame(home_canvas, bg=WEISS)
+home_cw = home_canvas.create_window((0,0), window=home_inner, anchor="nw")
+home_canvas.bind("<Configure>", lambda e: home_canvas.itemconfig(home_cw, width=e.width))
+home_inner.bind("<Configure>", lambda e: home_canvas.configure(scrollregion=home_canvas.bbox("all")))
+
+i7 = tk.Frame(home_inner, bg=WEISS)
+i7.pack(fill="both", expand=True, padx=20, pady=(20,10))
+
+ttk.Label(i7, text="StuConnect", font=("Helvetica", 18, "bold"), background=WEISS, foreground=LILA).pack(anchor="w", pady=(0,16))
+ttk.Label(i7, text="Was möchtest du tun?", font=("Helvetica", 13, "bold"), background=WEISS, foreground=SCHWARZ).pack(anchor="w", pady=(0,12))
+
+bz7 = tk.Frame(i7, bg=WEISS)
+bz7.pack(fill="x", pady=(0,16))
+tk.Button(bz7, text="🎓  Nachhilfe\nanbieten", command=zu_nachhilfe_anbieten,
+          bg=LILA, fg=WEISS, font=("Helvetica", 11, "bold"),
+          relief="flat", bd=0, cursor="hand2", pady=16).pack(side="left", expand=True, fill="x", padx=(0,6))
+tk.Button(bz7, text="🔍  Nachhilfe\nsuchen", command=zu_nachhilfe_suchen,
+          bg=LILA_HELL, fg=LILA, font=("Helvetica", 11, "bold"),
+          relief="flat", bd=0, cursor="hand2", pady=16).pack(side="left", expand=True, fill="x")
+
+ttk.Label(i7, text="Empfehlungen für dich", font=("Helvetica", 13, "bold"),
+          background=WEISS, foreground=SCHWARZ).pack(anchor="w", pady=(0,8))
+
+home_angebote_frame = tk.Frame(i7, bg=WEISS)
+home_angebote_frame.pack(fill="x")
+
+aktive_detail_home = {"frame": None}
+
+# ── Werbung BayernLB (einmalig, außerhalb aktualisiere_home) ──
+tk.Frame(i7, bg=GRAU_BG, height=1).pack(fill="x", pady=(16,8))
+wb = tk.Frame(i7, bg=BAYERNBLAU)
+wb.pack(fill="x", pady=(0,16))
+wb_inn = tk.Frame(wb, bg=BAYERNBLAU)
+wb_inn.pack(fill="x", padx=14, pady=12)
+werbung_kopf = tk.Frame(wb_inn, bg=BAYERNBLAU)
+werbung_kopf.pack(fill="x")
+ttk.Label(werbung_kopf, text="🏦  BayernLB", font=("Helvetica",11,"bold"),
+          background=BAYERNBLAU, foreground=SCHWARZ).pack(side="left")
+ttk.Label(werbung_kopf, text="Werbung", font=("Helvetica",8),
+          background=BAYERNBLAU, foreground=GRAU_TEXT).pack(side="right")
+ttk.Label(wb_inn, text="Wir finanzieren Fortschritt",
+          font=("Helvetica",10,"bold"), background=BAYERNBLAU, foreground=HELLBLAU).pack(anchor="w", pady=(4,2))
+ttk.Label(wb_inn, text="Komm in unsere Familie und werde ein\n#Fortschrittsfinanzierer",
+          font=("Helvetica",10), background=BAYERNBLAU, foreground=HELLBLAU, justify="left").pack(anchor="w")
+
+# ── Spendenbereich (einmalig) ──────────────────────────────────
+tk.Frame(i7, bg=GRAU_BG, height=1).pack(fill="x", pady=(0,12))
+spenden_frame = tk.Frame(i7, bg=WEISS)
+spenden_frame.pack(fill="x", pady=(0,16))
+
+ttk.Label(spenden_frame, text="💛  StuConnect Spendenaktion",
+          font=("Helvetica",12,"bold"), background=WEISS, foreground=SCHWARZ).pack(anchor="w")
+ttk.Label(spenden_frame, text="Hilf uns, mehr Studierenden zu helfen!",
+          font=("Helvetica",10), background=WEISS, foreground=GRAU_TEXT).pack(anchor="w", pady=(2,8))
+
+balken_bg = tk.Frame(spenden_frame, bg=GRAU_BG, height=18)
+balken_bg.pack(fill="x", pady=(0,4))
+balken_bg.pack_propagate(False)
+balken_fill = tk.Frame(balken_bg, bg=LILA, height=18)
+balken_fill.place(x=0, y=0, relheight=1.0)
+
+betrag_label = ttk.Label(spenden_frame, text="", font=("Helvetica",10),
+                          background=WEISS, foreground=GRAU_TEXT)
+betrag_label.pack(anchor="w", pady=(0,8))
+
+def aktualisiere_balken():
+    aktuell = spenden_aktuell.get()
+    prozent = min(aktuell / SPENDEN_ZIEL, 1.0)
+    balken_bg.update_idletasks()
+    breite = int(balken_bg.winfo_width() * prozent)
+    balken_fill.place(x=0, y=0, width=breite, relheight=1.0)
+    betrag_label.config(text=f"{aktuell:,.0f} € von {SPENDEN_ZIEL:,.0f} € Ziel".replace(",","."))
+
+window.after(200, aktualisiere_balken)
+
+spenden_eingabe_frame = tk.Frame(spenden_frame, bg=GRAU_BG2)
+spenden_offen = {"offen": False}
+
+def toggle_spenden():
+    if spenden_offen["offen"]:
+        spenden_eingabe_frame.pack_forget()
+        spenden_offen["offen"] = False
+        return
+    for w in spenden_eingabe_frame.winfo_children():
+        w.destroy()
+    spenden_eingabe_frame.pack(fill="x", pady=(0,8))
+    spenden_offen["offen"] = True
+    inn = tk.Frame(spenden_eingabe_frame, bg=GRAU_BG2)
+    inn.pack(fill="x", padx=10, pady=10)
+    ttk.Label(inn, text="Betrag wählen:", font=("Helvetica",11),
+              background=GRAU_BG2, foreground=SCHWARZ).pack(anchor="w", pady=(0,6))
+    spenden_auswahl = tk.StringVar(value="5 €")
+    btn_zeile = tk.Frame(inn, bg=GRAU_BG2)
+    btn_zeile.pack(fill="x", pady=(0,12))
+    for b in ["5 €","10 €","15 €"]:
+        tk.Button(btn_zeile, text=b,
+                  command=lambda v=b, sv=spenden_auswahl: sv.set(v),
+                  bg=LILA_HELL, fg=LILA, font=("Helvetica",11,"bold"),
+                  relief="flat", bd=0, cursor="hand2", padx=10, pady=6).pack(side="left", padx=(0,8))
+    def spende_abschicken_mit():
+        try: betrag = float(spenden_auswahl.get().replace(" €",""))
+        except: return
+        if betrag <= 0: return
+        spenden_aktuell.set(min(spenden_aktuell.get() + betrag, SPENDEN_ZIEL))
+        spenden_eingabe_frame.pack_forget()
+        spenden_offen["offen"] = False
+        aktualisiere_balken()
+    tk.Button(inn, text="💛  Spenden", command=spende_abschicken_mit,
+              bg=GELB, fg=SCHWARZ, font=("Helvetica",12,"bold"),
+              relief="flat", bd=0, cursor="hand2", pady=10).pack(fill="x")
+
+tk.Button(spenden_frame, text="💛  Jetzt spenden", command=toggle_spenden,
+          bg=GELB, fg=SCHWARZ, font=("Helvetica",12,"bold"),
+          relief="flat", bd=0, cursor="hand2", pady=10).pack(fill="x", pady=(0,4))
+
+def erstelle_detail_home(eltern, angebot):
+    d = tk.Frame(eltern, bg=LILA_HELL)
+    d.pack(fill="x", pady=(4,0))
+    inn = tk.Frame(d, bg=LILA_HELL)
+    inn.pack(fill="x", padx=12, pady=10)
+    ttk.Label(inn, text=sterne_text(angebot["sterne"]), font=("Helvetica", 11), background=LILA_HELL, foreground=GELB).pack(anchor="w")
+    for bez, wert in [("Fach",angebot["fach"]),("Studiengang",angebot["studiengang"]),
+                      ("Preis",angebot["preis"]+" €/Stunde"),("Unterricht",angebot["unterricht"])]:
+        z = tk.Frame(inn, bg=LILA_HELL)
+        z.pack(fill="x", pady=1)
+        ttk.Label(z, text=bez+":", font=("Helvetica",10), background=LILA_HELL, foreground=GRAU_TEXT, width=12, anchor="w").pack(side="left")
+        ttk.Label(z, text=wert, font=("Helvetica",10), background=LILA_HELL, foreground=SCHWARZ).pack(side="left")
+    tk.Button(inn, text="💬  Chat", command=lambda: zeige_chat_mit(angebot["name"]),
+              bg=LILA, fg=WEISS, font=("Helvetica",11,"bold"),
+              relief="flat", bd=0, cursor="hand2", pady=6).pack(fill="x", pady=(8,0))
+    return d
+
+def aktualisiere_home():
+    for w in home_angebote_frame.winfo_children():
+        w.destroy()
+    aktive_detail_home["frame"] = None
+    studiengang = nutzer_daten.get("studiengang","")
+    passende = [a for a in beispiel_angebote if a["studiengang"] == studiengang]
+    if not passende:
+        passende = beispiel_angebote[:4]
+
+    def toggle_home(karte, angebot):
+        if aktive_detail_home["frame"] is not None:
+            aktive_detail_home["frame"].destroy()
+            aktive_detail_home["frame"] = None
+            return
+        aktive_detail_home["frame"] = erstelle_detail_home(karte, angebot)
+
+    for a in passende[:4]:
+        karte = tk.Frame(home_angebote_frame, bg=GRAU_BG2)
+        karte.pack(fill="x", pady=(0,6))
+        k = tk.Frame(karte, bg=GRAU_BG2)
+        k.pack(fill="x", padx=10, pady=8)
+        tk.Button(k, text="👤  "+a["name"], bg=GRAU_BG2, fg=LILA,
+                  font=("Helvetica",11,"bold"), relief="flat", bd=0, cursor="hand2", anchor="w",
+                  command=lambda ka=karte, an=a: toggle_home(ka, an)).pack(anchor="w", fill="x")
+        ttk.Label(k, text=a["fach"]+"  |  "+a["preis"]+" €/h",
+                  font=("Helvetica",10), background=GRAU_BG2, foreground=GRAU_TEXT).pack(anchor="w")
+
+    
+# ══════════════════════════════════════════════════════════════
+# FRAME 8 – Suche
+# ══════════════════════════════════════════════════════════════
+frame8 = tk.Frame(window, bg=WEISS)
+alle_menu_frames.append(frame8)
+erstelle_nav(frame8, "Suche")
+
+suche_scroll_frame = tk.Frame(frame8, bg=WEISS)
+suche_scroll_frame.pack(fill="both", expand=True)
+suche_scrollbar = ttk.Scrollbar(suche_scroll_frame, orient="vertical")
+suche_scrollbar.pack(side="right", fill="y")
+suche_canvas = tk.Canvas(suche_scroll_frame, bg=WEISS, highlightthickness=0,
+                          yscrollcommand=suche_scrollbar.set)
+suche_canvas.pack(side="left", fill="both", expand=True)
+suche_scrollbar.config(command=suche_canvas.yview)
+suche_inner = tk.Frame(suche_canvas, bg=WEISS)
+suche_cw = suche_canvas.create_window((0,0), window=suche_inner, anchor="nw")
+suche_canvas.bind("<Configure>", lambda e: suche_canvas.itemconfig(suche_cw, width=e.width))
+suche_inner.bind("<Configure>", lambda e: suche_canvas.configure(scrollregion=suche_canvas.bbox("all")))
+
+i8 = tk.Frame(suche_inner, bg=WEISS)
+i8.pack(fill="both", expand=True, padx=20, pady=(20,0))
+
+k8 = tk.Frame(i8, bg=WEISS)
+k8.pack(fill="x", pady=(0,12))
+ttk.Label(k8, text="Suche", font=("Helvetica",18,"bold"), background=WEISS, foreground=SCHWARZ).pack(side="left")
+
+fach_filter_var   = tk.StringVar(value="Alle Fächer")
+region_filter_var = tk.StringVar(value="Alle")
+preis_filter_var  = tk.StringVar(value="Alle")
+gesch_filter_var  = tk.StringVar(value="Alle")
+
+filter_popup = tk.Frame(frame8, bg=WEISS, relief="solid", bd=1)
+filter_sichtbar = tk.BooleanVar(value=False)
+
+def toggle_filter():
+    if filter_sichtbar.get():
+        filter_popup.place_forget()
+        filter_sichtbar.set(False)
+        aktualisiere_suche()
+    else:
+        filter_popup.place(x=140, y=55, width=240, height=380)
+        filter_popup.lift()
+        filter_sichtbar.set(True)
+
+tk.Button(k8, text="⚙ Filter", command=toggle_filter,
+          bg=LILA_HELL, fg=LILA, font=("Helvetica",10,"bold"),
+          relief="flat", bd=0, cursor="hand2", padx=8, pady=4).pack(side="right")
+
+such_entry = tk.Entry(i8, font=("Helvetica",12), relief="solid", bd=1, fg=GRAU_TEXT)
+such_entry.insert(0, "🔍  Fach oder Name suchen")
+such_entry.pack(fill="x", ipady=8, pady=(0,10))
+
+def such_click(e):
+    if such_entry.get() == "🔍  Fach oder Name suchen":
+        such_entry.delete(0,"end"); such_entry.config(fg=SCHWARZ)
+def such_leave(e):
+    if such_entry.get() == "":
+        such_entry.insert(0,"🔍  Fach oder Name suchen"); such_entry.config(fg=GRAU_TEXT)
+such_entry.bind("<FocusIn>", such_click)
+such_entry.bind("<FocusOut>", such_leave)
+
+suche_angebote_frame = tk.Frame(i8, bg=WEISS)
+suche_angebote_frame.pack(fill="both", expand=True)
+aktive_detail_suche = {"frame": None}
+
+def erstelle_detail_suche(eltern, angebot):
+    d = tk.Frame(eltern, bg=LILA_HELL)
+    d.pack(fill="x", pady=(4,0))
+    inn = tk.Frame(d, bg=LILA_HELL)
+    inn.pack(fill="x", padx=12, pady=10)
+    ttk.Label(inn, text=sterne_text(angebot["sterne"]), font=("Helvetica",11), background=LILA_HELL, foreground=GELB).pack(anchor="w")
+    for bez, wert in [("Fach",angebot["fach"]),("Studiengang",angebot["studiengang"]),
+                      ("Preis",angebot["preis"]+" €/Stunde"),("Unterricht",angebot["unterricht"])]:
+        z = tk.Frame(inn, bg=LILA_HELL)
+        z.pack(fill="x", pady=1)
+        ttk.Label(z, text=bez+":", font=("Helvetica",10), background=LILA_HELL, foreground=GRAU_TEXT, width=12, anchor="w").pack(side="left")
+        ttk.Label(z, text=wert, font=("Helvetica",10), background=LILA_HELL, foreground=SCHWARZ).pack(side="left")
+    tk.Button(inn, text="💬  Chat", command=lambda: zeige_chat_mit(angebot["name"]),
+              bg=LILA, fg=WEISS, font=("Helvetica",11,"bold"),
+              relief="flat", bd=0, cursor="hand2", pady=6).pack(fill="x", pady=(8,0))
+    return d
+
+def filtere_angebote():
+    suchtext = such_entry.get().strip().lower()
+    if suchtext == "🔍  fach oder name suchen": suchtext = ""
+    fach   = fach_filter_var.get()
+    region = region_filter_var.get()
+    preis_g = preis_filter_var.get()
+    gesch  = gesch_filter_var.get()
+    ergebnis = []
+    for a in beispiel_angebote:
+        if suchtext and suchtext not in a["fach"].lower() and suchtext not in a["name"].lower():
+            continue
+        if fach != "Alle Fächer" and a["fach"] != fach:
+            continue
+        if region != "Alle":
+            if region == "Online"  and a["unterricht"] not in ["Online","Beides"]: continue
+            if region == "Vor Ort" and a["unterricht"] not in ["Vor Ort","Beides"]: continue
+        if preis_g != "Alle":
+            try:
+                max_p = int(preis_g.replace("bis ","").replace(" €",""))
+                if int(a["preis"]) > max_p: continue
+            except: pass
+        if gesch != "Alle":
+            if geschlecht_aus_name(a["name"]) != gesch: continue
+        ergebnis.append(a)
+    return ergebnis
+
+def zeige_suchergebnisse(angebote):
+    for w in suche_angebote_frame.winfo_children():
+        w.destroy()
+    aktive_detail_suche["frame"] = None
+    if not angebote:
+        ttk.Label(suche_angebote_frame, text="Keine Angebote gefunden.",
+                  font=("Helvetica",11), background=WEISS, foreground=GRAU_TEXT).pack(anchor="w", pady=10)
+        return
+    def toggle_suche(karte, a):
+        if aktive_detail_suche["frame"] is not None:
+            aktive_detail_suche["frame"].destroy()
+            aktive_detail_suche["frame"] = None
+            return
+        aktive_detail_suche["frame"] = erstelle_detail_suche(karte, a)
+    for a in angebote:
+        karte = tk.Frame(suche_angebote_frame, bg=GRAU_BG2)
+        karte.pack(fill="x", pady=(0,8))
+        k = tk.Frame(karte, bg=GRAU_BG2)
+        k.pack(fill="x", padx=10, pady=8)
+        tk.Button(k, text="👤  "+a["name"], bg=GRAU_BG2, fg=LILA,
+                  font=("Helvetica",11,"bold"), relief="flat", bd=0, cursor="hand2", anchor="w",
+                  command=lambda ka=karte, an=a: toggle_suche(ka, an)).pack(anchor="w", fill="x")
+        ttk.Label(k, text=a["fach"]+"  |  "+a["preis"]+" €/h  |  "+a["unterricht"],
+                  font=("Helvetica",10), background=GRAU_BG2, foreground=GRAU_TEXT).pack(anchor="w")
+        ttk.Label(k, text=sterne_text(a["sterne"]), font=("Helvetica",10), background=GRAU_BG2, foreground=GELB).pack(anchor="w")
+
+def aktualisiere_suche(event=None):
+    zeige_suchergebnisse(filtere_angebote())
+
+such_entry.bind("<KeyRelease>", aktualisiere_suche)
+
+# Filter-Popup
+ttk.Label(filter_popup, text="Filter", font=("Helvetica",12,"bold"),
+          background=WEISS, foreground=SCHWARZ).pack(anchor="w", padx=10, pady=(8,4))
+tk.Frame(filter_popup, bg=GRAU_BG, height=1).pack(fill="x")
+
+for lbl, var, werte in [
+    ("Fach",           fach_filter_var,  ["Alle Fächer"]+BWL_FAECHER),
+    ("Unterrichtsform",region_filter_var,["Alle","Online","Vor Ort"]),
+    ("Max. Preis",     preis_filter_var, ["Alle","bis 13 €","bis 15 €","bis 18 €","bis 20 €"]),
+    ("Geschlecht",     gesch_filter_var, ["Alle","männlich","weiblich"]),
+]:
+    ttk.Label(filter_popup, text=lbl, font=("Helvetica",10),
+              background=WEISS, foreground=GRAU_TEXT).pack(anchor="w", padx=10, pady=(6,2))
+    ttk.Combobox(filter_popup, textvariable=var, values=werte,
+                 state="readonly", font=("Helvetica",9)).pack(fill="x", padx=10)
+
+tk.Button(filter_popup, text="Anwenden", command=toggle_filter,
+          bg=LILA, fg=WEISS, font=("Helvetica",10,"bold"),
+          relief="flat", bd=0, cursor="hand2", pady=6).pack(fill="x", padx=10, pady=8)
+
+# ══════════════════════════════════════════════════════════════
+# FRAME 11 – Chat-Liste
+# ══════════════════════════════════════════════════════════════
+frame11 = tk.Frame(window, bg=WEISS)
+alle_menu_frames.append(frame11)
+erstelle_nav(frame11, "Chat")
+
+i11 = tk.Frame(frame11, bg=WEISS)
+i11.pack(fill="both", expand=True, padx=20, pady=(20,0))
+ttk.Label(i11, text="Chats", font=("Helvetica",18,"bold"), background=WEISS, foreground=SCHWARZ).pack(anchor="w", pady=(0,16))
+chat_liste_frame = tk.Frame(i11, bg=WEISS)
+chat_liste_frame.pack(fill="x")
+
+def aktualisiere_chat_liste():
+    for w in chat_liste_frame.winfo_children():
+        w.destroy()
+    if not aktive_chats:
+        ttk.Label(chat_liste_frame, text="Noch keine Chats vorhanden.",
+                  font=("Helvetica",11), background=WEISS, foreground=GRAU_TEXT).pack(anchor="w")
+        return
+    for kontakt in aktive_chats:
+        nachrichten = chat_nachrichten.get(kontakt, [])
+        letzte = nachrichten[-1][1] if nachrichten else "Noch keine Nachrichten"
+        karte = tk.Frame(chat_liste_frame, bg=GRAU_BG2, cursor="hand2")
+        karte.pack(fill="x", pady=(0,8))
+        ki = tk.Frame(karte, bg=GRAU_BG2)
+        ki.pack(fill="x", padx=12, pady=10)
+        ttk.Label(ki, text="👤  "+kontakt, font=("Helvetica",12,"bold"), background=GRAU_BG2, foreground=SCHWARZ).pack(anchor="w")
+        ttk.Label(ki, text=letzte[:45]+("..." if len(letzte)>45 else ""),
+                  font=("Helvetica",10), background=GRAU_BG2, foreground=GRAU_TEXT).pack(anchor="w")
+        karte.bind("<Button-1>", lambda e, n=kontakt: zeige_chat_mit(n))
+        ki.bind("<Button-1>", lambda e, n=kontakt: zeige_chat_mit(n))
+
+# ══════════════════════════════════════════════════════════════
+# FRAME 11b – Einzel-Chat
+# ══════════════════════════════════════════════════════════════
+frame11b = tk.Frame(window, bg=WEISS)
+alle_menu_frames.append(frame11b)
+frame11b.aktiv_name = "Chat"
+
+k11b = tk.Frame(frame11b, bg=WEISS)
+k11b.pack(fill="x", padx=20, pady=(20,0))
+tk.Button(k11b, text="←", command=von11b_zu11, bg=WEISS, fg=SCHWARZ,
+          font=("Helvetica",18), relief="flat", bd=0, cursor="hand2").pack(side="left")
+chat_name_label = ttk.Label(k11b, text="", font=("Helvetica",13,"bold"), background=WEISS, foreground=SCHWARZ)
+chat_name_label.pack(side="left", padx=10)
+
+def oeffne_bewertung():
+    name = aktueller_chat_partner.get()
+    bew_name_lbl.config(text="Bewertung für "+name)
+    sterne_var.set(0)
+    sterne_anz.config(text="☆☆☆☆☆")
+    zeige_menu(frame11c)
+
+tk.Button(k11b, text="⭐ Bewerten", command=oeffne_bewertung,
+          bg=LILA_HELL, fg=LILA, font=("Helvetica",9,"bold"),
+          relief="flat", bd=0, cursor="hand2", padx=6, pady=4).pack(side="right")
+
+nachr_frame = tk.Frame(frame11b, bg=WEISS)
+nachr_frame.pack(fill="both", expand=True, padx=20, pady=(12,0))
+
+def lade_nachrichten(name):
+    for w in nachr_frame.winfo_children():
+        w.destroy()
+    nachrichten = chat_nachrichten.get(name, [])
+    if not nachrichten:
+        ttk.Label(nachr_frame, text="Noch keine Nachrichten. Schreib etwas!",
+                  font=("Helvetica",11), background=WEISS, foreground=GRAU_TEXT).pack(anchor="w", pady=(20,0))
+        return
+    for sender, text in nachrichten:
+        ich = sender == "ich"
+        bubble = tk.Frame(nachr_frame, bg=WEISS)
+        bubble.pack(fill="x", pady=4)
+        tk.Label(bubble, text=text, font=("Helvetica",10),
+                 bg=LILA if ich else GRAU_BG, fg=WEISS if ich else SCHWARZ,
+                 wraplength=220, justify="left", padx=10, pady=8).pack(side="right" if ich else "left")
+
+def sende_nachricht():
+    text = chat_eingabe.get().strip()
+    name = aktueller_chat_partner.get()
+    if text == "" or text == "": return
+    if name not in chat_nachrichten: chat_nachrichten[name] = []
+    if name not in aktive_chats: aktive_chats.append(name)
+    chat_nachrichten[name].append(("ich", text))
+    chat_eingabe.delete(0,"end")
+    chat_eingabe.insert(0,"")
+    chat_eingabe.config(fg=GRAU_TEXT)
+    lade_nachrichten(name)
+
+e11b = tk.Frame(frame11b, bg=WEISS)
+e11b.pack(fill="x", padx=20, pady=10)
+chat_eingabe = tk.Entry(e11b, font=("Helvetica",11), relief="solid", bd=1, fg=GRAU_TEXT)
+chat_eingabe.insert(0,"")
+chat_eingabe.pack(side="left", fill="x", expand=True, ipady=8, padx=(0,8))
+tk.Button(e11b, text="➤", bg=LILA, fg=WEISS, font=("Helvetica",12),
+          relief="flat", bd=0, padx=12, pady=6, command=sende_nachricht).pack(side="left")
+
+
+# ══════════════════════════════════════════════════════════════
+# FRAME 11c – Bewertung
+# ══════════════════════════════════════════════════════════════
+frame11c = tk.Frame(window, bg=WEISS)
+alle_menu_frames.append(frame11c)
+frame11c.aktiv_name = "Chat"
+
+k11c = tk.Frame(frame11c, bg=WEISS)
+k11c.pack(fill="x", padx=20, pady=(30,0))
+tk.Button(k11c, text="←", command=lambda: zeige_menu(frame11b), bg=WEISS, fg=SCHWARZ,
+          font=("Helvetica",18), relief="flat", bd=0, cursor="hand2").pack(side="left")
+
+i11c = tk.Frame(frame11c, bg=WEISS)
+i11c.pack(fill="both", expand=True, padx=20, pady=(20,0))
+bew_name_lbl = ttk.Label(i11c, text="", font=("Helvetica",16,"bold"), background=WEISS, foreground=SCHWARZ)
+bew_name_lbl.pack(pady=(0,20))
+ttk.Label(i11c, text="Wie viele Sterne gibst du?", font=("Helvetica",12), background=WEISS, foreground=GRAU_TEXT).pack()
+sterne_var = tk.IntVar(value=0)
+sterne_anz = ttk.Label(i11c, text="☆☆☆☆☆", font=("Helvetica",32), background=WEISS, foreground=GELB)
+sterne_anz.pack(pady=(10,0))
+sbf = tk.Frame(i11c, bg=WEISS)
+sbf.pack(pady=(6,20))
+
+def setze_sterne(n):
+    sterne_var.set(n)
+    sterne_anz.config(text=sterne_text(n))
+
+for s in range(1,6):
+    tk.Button(sbf, text=str(s), command=lambda n=s: setze_sterne(n),
+              bg=LILA_HELL, fg=LILA, font=("Helvetica",12,"bold"),
+              relief="flat", bd=0, cursor="hand2", width=3, pady=6).pack(side="left", padx=4)
+
+ttk.Label(i11c, text="Kommentar (optional)", font=("Helvetica",11), background=WEISS, foreground=GRAU_TEXT).pack(anchor="w")
+bew_text = tk.Text(i11c, font=("Helvetica",11), relief="solid", bd=1, height=4, fg=GRAU_TEXT)
+#bew_text.insert("1.0","Schreibe einen Kommentar...")
+bew_text.pack(fill="x", pady=(6,20))
+
+def bewertung_speichern():
+    sterne = sterne_var.get()
+    if sterne == 0: return
+    name = aktueller_chat_partner.get()
+    kommentar = bew_text.get("1.0","end").strip()
+    #if kommentar == "Schreibe einen Kommentar...": kommentar = ""
+    # Bewertung wird in abgegeben gespeichert, NICHT in erhalten
+    bewertungen_abgegeben[name] = {"sterne": sterne, "kommentar": kommentar}
+    # Textfeld leeren für nächste Bewertung
+    bew_text.delete("1.0","end")
+    #bew_text.insert("1.0","Schreibe einen Kommentar...")
+    bew_text.config(fg=GRAU_TEXT)
+    sterne_var.set(0)
+    sterne_anz.config(text="☆☆☆☆☆")
+    zeige_menu(frame11b)
+
+tk.Button(frame11c, text="Bewertung abschicken", command=bewertung_speichern,
+          bg=LILA, fg=WEISS, font=("Helvetica",13,"bold"),
+          relief="flat", cursor="hand2", pady=14, bd=0).pack(fill="x", padx=20, pady=(0,10))
+
+# ══════════════════════════════════════════════════════════════
+# FRAME 12 – Profil
+# ══════════════════════════════════════════════════════════════
+frame12 = tk.Frame(window, bg=WEISS)
+alle_menu_frames.append(frame12)
+erstelle_nav(frame12, "Profil")
+
+i12 = tk.Frame(frame12, bg=WEISS)
+i12.pack(fill="both", expand=True, padx=20, pady=(20,0))
+
+av12 = tk.Frame(i12, bg=LILA_HELL, width=80, height=80)
+av12.pack(pady=(10,0))
+av12.pack_propagate(False)
+ttk.Label(av12, text="👤", font=("Helvetica",30), background=LILA_HELL, foreground=LILA).pack(expand=True)
+
+profil_name_label = ttk.Label(i12, text="Mein Profil", font=("Helvetica",16,"bold"), background=WEISS, foreground=SCHWARZ)
+profil_name_label.pack(pady=(10,2))
+profil_info_label = ttk.Label(i12, text="", font=("Helvetica",10), background=WEISS, foreground=GRAU_TEXT)
+profil_info_label.pack(pady=(0,16))
+tk.Frame(i12, bg=GRAU_BG, height=1).pack(fill="x", pady=(0,10))
+
+for sym, text, fn in [
+    ("📋","Meine Angebote",zu_meine_angebote),
+    ("⭐","Bewertungen",   zu_bewertungen),
+    ("⚙","Einstellungen",  zu_einstellungen)
+]:
+    z = tk.Frame(i12, bg=WEISS)
+    z.pack(fill="x", pady=4)
+    tk.Button(z, text=sym+"  "+text, command=fn, bg=WEISS, fg=SCHWARZ,
+              font=("Helvetica",12), relief="flat", bd=0, cursor="hand2", anchor="w").pack(side="left", fill="x")
+    ttk.Label(z, text="›", font=("Helvetica",14), background=WEISS, foreground=GRAU_TEXT).pack(side="right")
+
+def aktualisiere_profil():
+    name = nutzer_daten.get("name","")
+    profil_name_label.config(text=name if name else "Mein Profil")
+    info = nutzer_daten.get("studiengang","")
+    if nutzer_daten.get("semester"): info += "  |  "+nutzer_daten["semester"]
+    if nutzer_daten.get("uni"):      info += "\n"+nutzer_daten["uni"]
+    profil_info_label.config(text=info)
+
+# ══════════════════════════════════════════════════════════════
+# FRAME 12b – Einstellungen
+# ══════════════════════════════════════════════════════════════
+frame12b = tk.Frame(window, bg=WEISS)
+alle_menu_frames.append(frame12b)
+frame12b.aktiv_name = "Profil"
+
+k12b = tk.Frame(frame12b, bg=WEISS)
+k12b.pack(fill="x", padx=20, pady=(30,0))
+tk.Button(k12b, text="←", command=von12b_zu12, bg=WEISS, fg=SCHWARZ,
+          font=("Helvetica",18), relief="flat", bd=0, cursor="hand2").pack(side="left")
+ttk.Label(k12b, text="Einstellungen", font=("Helvetica",16,"bold"), background=WEISS, foreground=SCHWARZ).pack(side="left", padx=12)
+
+i12b = tk.Frame(frame12b, bg=WEISS)
+i12b.pack(fill="both", expand=True, padx=20, pady=(20,0))
+
+#ttk.Label(i12b, text="Dein Name", font=("Helvetica",11), background=WEISS, foreground=GRAU_TEXT).pack(anchor="w", pady=(0,4))
+#name_entry = tk.Entry(i12b, font=("Helvetica",12), relief="solid", bd=1)
+#name_entry.pack(fill="x", ipady=8, pady=(0,14))
+
+ttk.Label(i12b, text="Universität (aus E-Mail erkannt)", font=("Helvetica",11), background=WEISS, foreground=GRAU_TEXT).pack(anchor="w", pady=(0,4))
+uni_label_wert = ttk.Label(i12b, text="–", font=("Helvetica",12), background=GRAU_BG, foreground=SCHWARZ, padding=8)
+uni_label_wert.pack(fill="x", pady=(0,14))
+
+ttk.Label(i12b, text="Studiengang", font=("Helvetica",11), background=WEISS, foreground=GRAU_TEXT).pack(anchor="w", pady=(0,4))
+studiengang_einstell_var = tk.StringVar(value="Studiengang wählen")
+ttk.Combobox(i12b, textvariable=studiengang_einstell_var,
+             values=["Studiengang wählen","BWL","Informatik","Wirtschaftsinformatik",
+                     "Medizin","Jura","Psychologie","Maschinenbau","Architektur"],
+             state="readonly", font=("Helvetica",12)).pack(fill="x", ipady=6, pady=(0,14))
+
+ttk.Label(i12b, text="Semester", font=("Helvetica",11), background=WEISS, foreground=GRAU_TEXT).pack(anchor="w", pady=(0,4))
+semester_einstell_var = tk.StringVar(value="Semester wählen")
+ttk.Combobox(i12b, textvariable=semester_einstell_var,
+             values=["Semester wählen","1. Semester","2. Semester","3. Semester",
+                     "4. Semester","5. Semester","6. Semester","7. Semester","8. Semester"],
+             state="readonly", font=("Helvetica",12)).pack(fill="x", ipady=6, pady=(0,14))
+
+ttk.Label(i12b, text="Geschlecht", font=("Helvetica",11), background=WEISS, foreground=GRAU_TEXT).pack(anchor="w", pady=(0,4))
+geschlecht_einstell_var = tk.StringVar(value="")
+gef = tk.Frame(i12b, bg=WEISS)
+gef.pack(fill="x", pady=(0,14))
+for g in ["männlich","weiblich","divers"]:
+    tk.Radiobutton(gef, text=g.capitalize(), variable=geschlecht_einstell_var, value=g,
+                   bg=WEISS, fg=SCHWARZ, font=("Helvetica",11),
+                   activebackground=WEISS, cursor="hand2").pack(side="left", padx=(0,12))
+
+def speichern():
+    name = name_entry.get().strip()
+    if name: nutzer_daten["name"] = name
+    nutzer_daten["studiengang"] = studiengang_einstell_var.get()
+    nutzer_daten["semester"]    = semester_einstell_var.get()
+    nutzer_daten["uni"]         = uni_label_wert.cget("text")
+    nutzer_daten["geschlecht"]  = geschlecht_einstell_var.get()
+    aktualisiere_profil()
+    von12b_zu12()
+
+tk.Button(frame12b, text="Speichern", command=speichern, bg=LILA, fg=WEISS,
+          font=("Helvetica",13,"bold"), relief="flat", cursor="hand2", pady=14, bd=0).pack(fill="x", padx=20, pady=(10,0))
+
+# ══════════════════════════════════════════════════════════════
+# FRAME 12c – Meine Angebote
+# ══════════════════════════════════════════════════════════════
+frame12c = tk.Frame(window, bg=WEISS)
+alle_menu_frames.append(frame12c)
+frame12c.aktiv_name = "Profil"
+
+k12c = tk.Frame(frame12c, bg=WEISS)
+k12c.pack(fill="x", padx=20, pady=(30,0))
+tk.Button(k12c, text="←", command=von12c_zu12, bg=WEISS, fg=SCHWARZ,
+          font=("Helvetica",18), relief="flat", bd=0, cursor="hand2").pack(side="left")
+ttk.Label(k12c, text="Meine Angebote", font=("Helvetica",16,"bold"), background=WEISS, foreground=SCHWARZ).pack(side="left", padx=12)
+
+meine_angebote_frame = tk.Frame(frame12c, bg=WEISS)
+meine_angebote_frame.pack(fill="both", expand=True, padx=20, pady=(16,0))
+
+def aktualisiere_meine_angebote():
+    for w in meine_angebote_frame.winfo_children():
+        w.destroy()
+    if not eigene_angebote:
+        ttk.Label(meine_angebote_frame, text="Du hast noch keine Angebote erstellt.",
+                  font=("Helvetica",11), background=WEISS, foreground=GRAU_TEXT).pack(pady=(20,0))
+    else:
+        for a in eigene_angebote:
+            karte = tk.Frame(meine_angebote_frame, bg=GRAU_BG2)
+            karte.pack(fill="x", pady=(0,8))
+            k = tk.Frame(karte, bg=GRAU_BG2)
+            k.pack(fill="x", padx=10, pady=8)
+            ttk.Label(k, text="📚  "+a["fach"], font=("Helvetica",12,"bold"), background=GRAU_BG2, foreground=SCHWARZ).pack(anchor="w")
+            ttk.Label(k, text=a["studiengang"]+"  |  "+a["preis"]+" €/h  |  "+a["unterricht"],
+                      font=("Helvetica",10), background=GRAU_BG2, foreground=GRAU_TEXT).pack(anchor="w")
+# Löschen-Button rechts
+            # lambda speichert die aktuelle Position des Elements 'a' in der Variable 'idx'
+            tk.Button(k, text="✕", command=lambda idx=eigene_angebote.index(a): [eigene_angebote.pop(idx), aktualisiere_meine_angebote()],
+                      bg=ROT, fg=WEISS, font=("Helvetica",10,"bold"),
+                      relief="flat", bd=0, cursor="hand2",
+                      padx=8, pady=4).pack(side="right", anchor="center")
+
+tk.Button(frame12c, text="+ Neues Angebot", command=zu_nachhilfe_anbieten,
+          bg=LILA, fg=WEISS, font=("Helvetica",12,"bold"),
+          relief="flat", cursor="hand2", pady=12, bd=0).pack(fill="x", padx=20, pady=(10,0))
+
+# ══════════════════════════════════════════════════════════════
+# FRAME 12e – Bewertungen
+# ══════════════════════════════════════════════════════════════
+frame12e = tk.Frame(window, bg=WEISS)
+alle_menu_frames.append(frame12e)
+frame12e.aktiv_name = "Profil"
+
+k12e = tk.Frame(frame12e, bg=WEISS)
+k12e.pack(fill="x", padx=20, pady=(30,0))
+tk.Button(k12e, text="←", command=von12e_zu12, bg=WEISS, fg=SCHWARZ,
+          font=("Helvetica",18), relief="flat", bd=0, cursor="hand2").pack(side="left")
+ttk.Label(k12e, text="Bewertungen", font=("Helvetica",16,"bold"), background=WEISS, foreground=SCHWARZ).pack(side="left", padx=12)
+
+bewertungen_frame = tk.Frame(frame12e, bg=WEISS)
+bewertungen_frame.pack(fill="both", expand=True, padx=20, pady=(16,0))
+
+def aktualisiere_bewertungen():
+    for w in bewertungen_frame.winfo_children():
+        w.destroy()
+    for b in bewertungen_erhalten:
+        karte = tk.Frame(bewertungen_frame, bg=GRAU_BG2)
+        karte.pack(fill="x", pady=(0,10))
+        k = tk.Frame(karte, bg=GRAU_BG2)
+        k.pack(fill="x", padx=10, pady=10)
+        ttk.Label(k, text="👤  "+b["von"], font=("Helvetica",11,"bold"), background=GRAU_BG2, foreground=SCHWARZ).pack(anchor="w")
+        ttk.Label(k, text=sterne_text(b["sterne"]), font=("Helvetica",14), background=GRAU_BG2, foreground=GELB).pack(anchor="w")
+        if b.get("kommentar"):
+            ttk.Label(k, text=b["kommentar"], font=("Helvetica",10),
+                      background=GRAU_BG2, foreground=GRAU_TEXT, wraplength=300, justify="left").pack(anchor="w", pady=(4,0))
+
+# ══════════════════════════════════════════════════════════════
+# FRAME 7a – Nachhilfe anbieten
+# ══════════════════════════════════════════════════════════════
+frame7a = tk.Frame(window, bg=WEISS)
+alle_menu_frames.append(frame7a)
+frame7a.aktiv_name = "Home"
+
+k7a = tk.Frame(frame7a, bg=WEISS)
+k7a.pack(fill="x", padx=20, pady=(30,0))
+tk.Button(k7a, text="←", command=von7a_zu7, bg=WEISS, fg=SCHWARZ,
+          font=("Helvetica",18), relief="flat", bd=0, cursor="hand2").pack(side="left")
+ttk.Label(k7a, text="Nachhilfe anbieten", font=("Helvetica",16,"bold"), background=WEISS, foreground=SCHWARZ).pack(side="left", padx=12)
+
+i7a = tk.Frame(frame7a, bg=WEISS)
+i7a.pack(fill="both", expand=True, padx=20, pady=(20,0))
+
+ttk.Label(i7a, text="Fach", font=("Helvetica",11), background=WEISS, foreground=GRAU_TEXT).pack(anchor="w", pady=(0,4))
+fach_anbieten_var = tk.StringVar(value="Fach wählen")
+ttk.Combobox(i7a, textvariable=fach_anbieten_var, values=["Fach wählen"]+BWL_FAECHER,
+             state="readonly", font=("Helvetica",12)).pack(fill="x", ipady=6, pady=(0,14))
+
+ttk.Label(i7a, text="Studiengang", font=("Helvetica",11), background=WEISS, foreground=GRAU_TEXT).pack(anchor="w", pady=(0,4))
+studiengang_anbieten_var = tk.StringVar(value="Studiengang wählen")
+ttk.Combobox(i7a, textvariable=studiengang_anbieten_var,
+             values=["Studiengang wählen","BWL","Informatik","Wirtschaftsinformatik",
+                     "Medizin","Jura","Psychologie","Maschinenbau","Architektur"],
+             state="readonly", font=("Helvetica",12)).pack(fill="x", ipady=6, pady=(0,14))
+
+ttk.Label(i7a, text="Preis pro Stunde (€)", font=("Helvetica",11), background=WEISS, foreground=GRAU_TEXT).pack(anchor="w", pady=(0,4))
+preis_entry = tk.Entry(i7a, font=("Helvetica",12), relief="solid", bd=1)
+preis_entry.pack(fill="x", ipady=8, pady=(0,14))
+
+ttk.Label(i7a, text="Unterrichtsform", font=("Helvetica",11), background=WEISS, foreground=GRAU_TEXT).pack(anchor="w", pady=(0,4))
+unterricht_var = tk.StringVar(value="Online")
+uf = tk.Frame(i7a, bg=WEISS)
+uf.pack(fill="x", pady=(0,20))
+for u in ["Online","Vor Ort","Beides"]:
+    tk.Radiobutton(uf, text=u, variable=unterricht_var, value=u,
+                   bg=WEISS, fg=SCHWARZ, font=("Helvetica",11),
+                   activebackground=WEISS, cursor="hand2").pack(side="left", padx=(0,12))
+
+fehler_angebot = ttk.Label(frame7a, text="", font=("Helvetica",10), background=WEISS, foreground=ROT)
+fehler_angebot.pack(padx=20, anchor="w")
+
+def angebot_speichern():
+    if fach_anbieten_var.get() == "Fach wählen":
+        fehler_angebot.config(text="⚠ Bitte wähle ein Fach."); return
+    if studiengang_anbieten_var.get() == "Studiengang wählen":
+        fehler_angebot.config(text="⚠ Bitte wähle einen Studiengang."); return
+    if preis_entry.get().strip() == "":
+        fehler_angebot.config(text="⚠ Bitte gib einen Preis ein."); return
+    eigene_angebote.append({"fach": fach_anbieten_var.get(), "studiengang": studiengang_anbieten_var.get(),
+                             "preis": preis_entry.get().strip(), "unterricht": unterricht_var.get()})
+    fehler_angebot.config(text="")
+    von7a_zu7()
+
+tk.Button(frame7a, text="Angebot erstellen", command=angebot_speichern,
+          bg=LILA, fg=WEISS, font=("Helvetica",13,"bold"),
+          relief="flat", cursor="hand2", pady=14, bd=0).pack(fill="x", padx=20, pady=(10,0))
+
+# ══════════════════════════════════════════════════════════════
+# FRAME 7b – Nachhilfe suchen
+# ══════════════════════════════════════════════════════════════
+frame7b = tk.Frame(window, bg=WEISS)
+alle_menu_frames.append(frame7b)
+frame7b.aktiv_name = "Home"
+
+k7b = tk.Frame(frame7b, bg=WEISS)
+k7b.pack(fill="x", padx=20, pady=(30,0))
+tk.Button(k7b, text="←", command=von7b_zu7, bg=WEISS, fg=SCHWARZ,
+          font=("Helvetica",18), relief="flat", bd=0, cursor="hand2").pack(side="left")
+ttk.Label(k7b, text="Nachhilfe suchen", font=("Helvetica",16,"bold"), background=WEISS, foreground=SCHWARZ).pack(side="left", padx=12)
+
+i7b = tk.Frame(frame7b, bg=WEISS)
+i7b.pack(fill="both", expand=True, padx=20, pady=(20,0))
+
+ttk.Label(i7b, text="Welches Fach brauchst du?", font=("Helvetica",11), background=WEISS, foreground=GRAU_TEXT).pack(anchor="w", pady=(0,4))
+fach_suchen_var = tk.StringVar(value="Fach wählen")
+ttk.Combobox(i7b, textvariable=fach_suchen_var, values=["Fach wählen"]+BWL_FAECHER,
+             state="readonly", font=("Helvetica",12)).pack(fill="x", ipady=6, pady=(0,14))
+
+ttk.Label(i7b, text="Max. Preis (€/h)", font=("Helvetica",11), background=WEISS, foreground=GRAU_TEXT).pack(anchor="w", pady=(0,4))
+maxpreis_var = tk.StringVar(value="Alle")
+ttk.Combobox(i7b, textvariable=maxpreis_var,
+             values=["Alle","bis 13 €","bis 15 €","bis 18 €","bis 20 €"],
+             state="readonly", font=("Helvetica",12)).pack(fill="x", ipady=6, pady=(0,14))
+
+ttk.Label(i7b, text="Unterrichtsform", font=("Helvetica",11), background=WEISS, foreground=GRAU_TEXT).pack(anchor="w", pady=(0,4))
+pref_var = tk.StringVar(value="Alle")
+pf = tk.Frame(i7b, bg=WEISS)
+pf.pack(fill="x", pady=(0,20))
+for u in ["Alle","Online","Vor Ort"]:
+    tk.Radiobutton(pf, text=u, variable=pref_var, value=u,
+                   bg=WEISS, fg=SCHWARZ, font=("Helvetica",11),
+                   activebackground=WEISS, cursor="hand2").pack(side="left", padx=(0,12))
+
+def suche_starten():
+    fach    = fach_suchen_var.get()
+    preis_g = maxpreis_var.get()
+    region  = pref_var.get()
+    fach_filter_var.set(fach if fach != "Fach wählen" else "Alle Fächer")
+    region_filter_var.set(region)
+    preis_filter_var.set(preis_g)
+    zu_suche()
+
+tk.Button(frame7b, text="Suche starten", command=suche_starten,
+          bg=LILA, fg=WEISS, font=("Helvetica",13,"bold"),
+          relief="flat", cursor="hand2", pady=14, bd=0).pack(fill="x", padx=20, pady=(10,0))
+
+# ── Start ──────────────────────────────────────────────────────
+window.mainloop()
